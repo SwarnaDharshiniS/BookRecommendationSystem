@@ -3,51 +3,6 @@
 A Streamlit app that recommends books by genre and keyword, ranked using sentiment
 analysis of Amazon book reviews plus topic modeling of the top results.
 
-## ⚠️ Security note - rotate your Kaggle API key
-
-The original repo's `Data.zip` contains `Data/Data Collection/Kaggle Dataset/kaggle.json`
-with a **real Kaggle username and API key committed in plain text**. Since the repo is
-public on GitHub, that key is exposed to anyone. Please:
-1. Go to your Kaggle account settings and **revoke/regenerate** that API token now.
-2. Remove `kaggle.json` from the repo (and ideally scrub it from git history, e.g. with
-   the `git filter-repo` or BFG tool, since old commits still contain it even if you
-   delete the file going forward).
-
-This package leaves that file out entirely - it isn't needed to run the app.
-
-## What was wrong / what was fixed
-
-1. **App crashed on every successful recommendation.** `app.py` did `elif results:`
-   on a pandas DataFrame, which raises `ValueError: The truth value of a DataFrame is
-   ambiguous` any time results were found - i.e. the app's main feature crashed every
-   time it worked. Fixed to just use `else`.
-2. **Selecting "self-help" crashed the app.** There's no `self-help_df.csv` in the
-   data, but the genre was in the dropdown, causing an unhandled `FileNotFoundError`.
-   `recommend_book` now raises that error clearly, and `app.py` catches it and shows a
-   friendly message instead of crashing.
-3. **No `requirements.txt`.** The project couldn't actually be installed/deployed.
-   Added one with the libraries the code uses (`streamlit`, `pandas`, `scikit-learn`,
-   `nltk`, `fuzzywuzzy`, `python-Levenshtein`).
-4. **Severe slowness on common keywords.** Matching used `DataFrame.iterrows()` plus a
-   fuzzy-match check against every word of every review, even for exact matches. On the
-   "fiction" genre (~450k reviews) a simple query took 30-50+ seconds. Now there's an
-   exact-match fast path, a cheap mathematical pre-filter that skips fuzzy comparisons
-   that can't possibly reach the match threshold, and `itertuples()` instead of
-   `iterrows()`. Same matching behavior (typos/close variants still match), ~7x faster
-   in the worst case tested.
-5. **Repeated disk reads.** Every recommendation reloaded the full genre CSV from disk.
-   Genre data is now cached in memory per process.
-6. **Topic modeling bugs.** `CountVectorizer(max_df=1, ...)` only kept words that
-   appeared in exactly one document, which could throw "empty vocabulary" and crash the
-   page; `display_topics` also had a `return` inside its loop that meant it only ever
-   reported the first of 5 topics. Both fixed, with a friendly fallback string if there
-   genuinely isn't enough review text to model.
-7. **Noisy/fragile NLTK download.** `sentiment_analysis.py` called `nltk.download(...)`
-   unconditionally on every import. It now checks if the data is already present first,
-   and raises a clear error if a download is needed but fails (e.g. no internet).
-8. Minor UX: added a loading spinner (queries can take a few seconds on large genres),
-   a cleaner results table, and an expandable section to read full review excerpts.
-
 ## Project structure
 
 ```
